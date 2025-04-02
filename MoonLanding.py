@@ -51,6 +51,11 @@ class Bereshit101:
         t += seconds * self.SECOND_ENG_F
         return t / weight
 
+    def compute_wanted_vs(self, alt, start_alt):
+        # Normalize: 1 at start, 0 at ground
+        x = alt / start_alt
+        return 1 + 29 / (1 + math.exp((x - 0.5) * 10))
+
     def update(self, vs, dt, wanted_vs):
         p = vs - wanted_vs
         d = (p - self.last_err) / dt
@@ -70,6 +75,7 @@ class Bereshit101:
         dist = 181 * 1000
         ang = 58.3
         alt = 13748
+        start_alt = alt
         time = 0
         dt = 1
         acc = 0
@@ -105,6 +111,11 @@ class Bereshit101:
                 wanted_vs = 6
             else:
                 wanted_vs = 1
+
+            # wanted_vs = self.compute_wanted_vs(alt, start_alt)
+
+            if vs == wanted_vs:
+                self.i = 0
 
             # Compute thrust power using PID for vertical speed
             NN = self.update(vs, dt, wanted_vs)
