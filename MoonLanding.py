@@ -51,10 +51,40 @@ class Bereshit101:
         t += seconds * self.SECOND_ENG_F
         return t / weight
 
-    def compute_wanted_vs(self, alt, start_alt):
-        # Normalize: 1 at start, 0 at ground
-        x = alt / start_alt
-        return 1 + 29 / (1 + math.exp((x - 0.5) * 10))
+    def compute_wanted_vs(self, alt):
+        """
+        Logistic-style function that gives ~30 m/s at altitude=4000
+        and ~1 m/s at altitude=0, with a smooth transition.
+        """
+        if alt >= 4000:
+            return 30.0
+        if alt <= 0:
+            return 1.0
+
+        # Normalize so that x=0 at alt=4000, x=1 at alt=0
+        x = (4000.0 - alt) / 4000.0
+
+        # The 10.0 is the "steepness" factor - increase/decrease for sharper/slower transition
+        return 1.0 + 29.0 / (1.0 + math.exp((x - 0.5) * 10.0))
+
+    def compute_wanted_vs_linier(self, alt):
+        # Clamp altitude to [0, 4000]
+        alt_clamped = max(0, min(4000, alt))
+        # Linear interpolation from alt=0 (vs=1) up to alt=4000 (vs=24)
+        vs = 1 + (24 - 1) * (alt_clamped / 4000.0)
+        return vs
+
+    def compute_wanted_vs_log(self, alt):
+        # Desired speeds
+        min_speed = 1  # near the ground
+        max_speed = 24  # up high
+
+        # "Center" altitude for the sigmoid and a steepness factor
+        alpha = 2000.0  # midpoint altitude
+        k = 0.002  # steepness of the transition
+
+        # Logistic function:
+        return min_speed + (max_speed - min_speed) / (1 + math.exp(-k * (alt - alpha)))
 
     def update(self, vs, dt, wanted_vs):
         p = vs - wanted_vs
@@ -98,7 +128,7 @@ class Bereshit101:
                 print("{:<6} {:<6.2f} {:<6.2f} {:<8.2f} {:<8.2f} {:<6.2f} {:<8.2f} {:<6.2f} {:<6.2f}".format(
                     time, vs, hs, dist, alt, ang, weight, acc, fuel))
 
-            # Update wanted vertical speed based on altitude
+            # # Update wanted vertical speed based on altitude
             if alt > 4000:
                 wanted_vs = 24
             elif alt > 2000:
@@ -112,9 +142,10 @@ class Bereshit101:
             else:
                 wanted_vs = 1
 
-            # wanted_vs = self.compute_wanted_vs(alt, start_alt)
+            # tried to make the speed reduction modular but was less full efficient
+            # wanted_vs = self.compute_wanted_vs_log(alt)
 
-            if vs == wanted_vs:
+            if vs == wanted_vs: # zero the error when we got to the wanted sppeed
                 self.i = 0
 
             # Compute thrust power using PID for vertical speed
@@ -193,7 +224,7 @@ class Bereshit101:
         plt.xlabel("Time (s)")
         plt.ylabel("Angle (°)")
         plt.title("Engine Angle vs Time")
-        plt.ylim(0, 60)
+        plt.ylim(0, 180)
         plt.legend()
         plt.grid(True)
 
